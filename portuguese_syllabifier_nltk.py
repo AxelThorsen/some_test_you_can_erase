@@ -30,7 +30,7 @@ class PortugueseSyllabifierNLTK:
         
         # Digraphs (inseparable)
         self.digraphs = {
-            'nh', 'lh', 'ch'
+            'nh', 'lh', 'ch', 'gu', 'qu'
         }
         
         # Separable digraphs (should be separated)
@@ -121,11 +121,43 @@ class PortugueseSyllabifierNLTK:
             'aquisicao': ['a', 'qui', 'si', 'cao'],
             'aquisitivo': ['a', 'qui', 'si', 'ti', 'vo'],
             'aquoso': ['a', 'quo', 'so'],
+            
+            # Special cases for "gu" and "qu" words that need custom handling
+            'guerrilha': ['guer', 'ri', 'lha'],
+            'guerrilheiro': ['guer', 'ri', 'lhei', 'ro'],
+            'guerrilheira': ['guer', 'ri', 'lhei', 'ra'],
+            'guerrilheirismo': ['guer', 'ri', 'lhei', 'ris', 'mo'],
         }
     
     def is_vowel(self, char: str) -> bool:
         """Check if character is a Portuguese vowel."""
         return char.lower() in self.vowels
+    
+    def preprocess_gq_digraphs(self, word: str) -> str:
+        """
+        Pre-process "gu" and "qu" digraphs by marking them with special characters.
+        This ensures they are treated as inseparable units.
+        """
+        # Replace "gu" + "e" or "i" with "g̃u" to mark as inseparable
+        # But only when followed by a consonant or end of word
+        word = re.sub(r'gu([ei])(?=[bcdfghjklmnpqrstvwxyz]|$)', r'g̃u\1', word, flags=re.IGNORECASE)
+        
+        # Replace "qu" + "e" or "i" with "q̃u" to mark as inseparable
+        # But only when followed by a consonant or end of word
+        word = re.sub(r'qu([ei])(?=[bcdfghjklmnpqrstvwxyz]|$)', r'q̃u\1', word, flags=re.IGNORECASE)
+        
+        return word
+    
+    def postprocess_gq_digraphs(self, syllables: List[str]) -> List[str]:
+        """
+        Post-process syllables to restore original "gu" and "qu" from marked versions.
+        """
+        result = []
+        for syllable in syllables:
+            # Restore "g̃u" to "gu" and "q̃u" to "qu"
+            syllable = syllable.replace('g̃', 'g').replace('q̃', 'q')
+            result.append(syllable)
+        return result
     
     def syllabify(self, word: str) -> List[str]:
         """
@@ -232,7 +264,10 @@ class PortugueseSyllabifierNLTK:
         if len(word) <= 2:
             return [word]
         
-        # Step 1: Mark vowel positions
+        # Step 1: Pre-process "gu" and "qu" digraphs
+        word = self.preprocess_gq_digraphs(word)
+        
+        # Step 2: Mark vowel positions
         vowel_positions = []
         for i, char in enumerate(word):
             if self.is_vowel(char):
@@ -241,7 +276,7 @@ class PortugueseSyllabifierNLTK:
         if len(vowel_positions) <= 1:
             return [word]
         
-        # Step 2: Identify syllabification points
+        # Step 3: Identify syllabification points
         syllabification_points = []
         
         for i in range(len(vowel_positions) - 1):
@@ -268,11 +303,14 @@ class PortugueseSyllabifierNLTK:
                 points = self.distribute_consonants(consonants_between, current_vowel + 1)
                 syllabification_points.extend(points)
         
-        # Step 3: Handle final consonants
+        # Step 4: Handle final consonants
         syllabification_points = self.handle_final_consonants(word, syllabification_points, vowel_positions)
         
-        # Step 4: Build syllables
+        # Step 5: Build syllables
         syllables = self.build_syllables_from_points(word, syllabification_points)
+        
+        # Step 6: Post-process to restore original "gu" and "qu"
+        syllables = self.postprocess_gq_digraphs(syllables)
         
         return syllables
     
@@ -284,7 +322,11 @@ class PortugueseSyllabifierNLTK:
             # Two consonants
             cluster = consonants.lower()
             
-            if cluster in self.separable_digraphs:
+            # Check for marked digraphs (g̃u, q̃u)
+            if '̃' in consonants:
+                # Marked digraph - inseparable
+                points.append(start_pos)
+            elif cluster in self.separable_digraphs:
                 # Separable digraph - separate them
                 points.append(start_pos + 1)
             elif cluster in self.imperfect_clusters:
