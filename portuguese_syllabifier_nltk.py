@@ -15,8 +15,8 @@ class PortugueseSyllabifierNLTK:
         except LookupError:
             nltk.download('punkt')
         
-        # Portuguese vowels (case-insensitive)
-        self.vowels = set('aeiouáâãàéêèíîìóôõòúûù')
+        # Portuguese vowels (case-insensitive) - including 'y' for foreign words/names
+        self.vowels = set('aeiouáâãàéêèíîìóôõòúûùy')
         
         # Diphthongs (case-insensitive) - these are single syllables
         self.diphthongs = {
