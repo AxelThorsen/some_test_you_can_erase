@@ -40,6 +40,9 @@ def main():
     # Process when text is entered and Enter is pressed
     if text and text.strip():
         try:
+            # Debug: Show what text is being processed
+            st.write("Debug - Processing text:", repr(text.strip()))
+            
             # Analyze the text
             analysis = detector.analyze_text(text.strip())
             
@@ -89,14 +92,21 @@ def main():
             # Create better highlighted text with custom colors
             highlighted_html = analysis['highlighted_text']
             
-            # Replace markdown formatting with custom HTML colors using regex for precise matching
+            # Debug: Show raw highlighted text
+            st.write("Debug - Raw highlighted text:", repr(highlighted_html))
+            
+            # Replace markdown formatting with custom HTML colors using a more robust approach
             import re
             
-            # Double RR patterns: Dark red background (replace **text** with span)
-            highlighted_html = re.sub(r'\*\*(.*?)\*\*', r'<span style="background-color: #d32f2f; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;">\1</span>', highlighted_html)
+            # First, protect double asterisks by replacing them with a temporary marker
+            highlighted_html = highlighted_html.replace('**', 'DOUBLE_ASTERISK')
             
             # Single R patterns: Red background (replace *text* with span)
             highlighted_html = re.sub(r'\*(.*?)\*', r'<span style="background-color: #ff6b6b; color: white; padding: 2px 4px; border-radius: 3px; font-style: italic;">\1</span>', highlighted_html)
+            
+            # Restore double asterisks and convert to dark red
+            highlighted_html = highlighted_html.replace('DOUBLE_ASTERISK', '**')
+            highlighted_html = re.sub(r'\*\*(.*?)\*\*', r'<span style="background-color: #d32f2f; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;">\1</span>', highlighted_html)
             
             # Easy patterns: Green background (replace `text` with span)
             highlighted_html = re.sub(r'`(.*?)`', r'<span style="background-color: #66bb6a; color: white; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</span>', highlighted_html)

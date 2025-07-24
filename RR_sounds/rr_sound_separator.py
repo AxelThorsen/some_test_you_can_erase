@@ -79,22 +79,38 @@ class RRSoundDetector:
         syllables_with_r = []
         words = self.tokenize_text(text)
         
+        # Track word positions to avoid duplicates
+        text_lower = text.lower()
+        current_pos = 0
+        
         # Process each word individually
         for word in words:
-            word_syllables = self._analyze_word_syllables(word, text)
-            syllables_with_r.extend(word_syllables)
+            word_lower = word.lower()
+            
+            # Find the word position starting from current_pos
+            word_start = text_lower.find(word_lower, current_pos)
+            
+            if word_start != -1:
+                word_syllables = self._analyze_word_syllables(word, text, word_start)
+                syllables_with_r.extend(word_syllables)
+                current_pos = word_start + len(word)
+            else:
+                # Fallback: try to find the word anywhere in the text
+                word_syllables = self._analyze_word_syllables(word, text)
+                syllables_with_r.extend(word_syllables)
         
         # Sort by position in text
         syllables_with_r.sort(key=lambda x: x.syllable_start)
         return syllables_with_r
     
-    def _analyze_word_syllables(self, word: str, original_text: str) -> List[RRSyllable]:
+    def _analyze_word_syllables(self, word: str, original_text: str, word_start: int = None) -> List[RRSyllable]:
         """
         Analyze a single word's syllables for R sounds.
         
         Args:
             word: Word to analyze
             original_text: Original text for position calculation
+            word_start: Starting position of the word in the text (optional)
             
         Returns:
             List of RRSyllable objects found in the word
@@ -106,8 +122,9 @@ class RRSoundDetector:
         
         # Find the word position in the original text (case-insensitive)
         word_lower = word.lower()
-        text_lower = original_text.lower()
-        word_start = text_lower.find(word_lower)
+        if word_start is None:
+            text_lower = original_text.lower()
+            word_start = text_lower.find(word_lower)
         
         if word_start == -1:
             return syllables_with_r
@@ -170,34 +187,45 @@ class RRSoundDetector:
         if not syllables:
             return text
         
-        # Sort syllables by position (reverse order to avoid index shifting)
-        sorted_syllables = sorted(syllables, key=lambda x: x.syllable_start, reverse=True)
+        # Create a list of characters with highlighting information
+        char_highlights = [None] * len(text)
         
-        highlighted_text = text
-        
-        for syllable in sorted_syllables:
-            # Verify the syllable position is valid
+        # Mark which characters should be highlighted and with what pattern
+        for syllable in syllables:
             if (syllable.syllable_start >= 0 and 
                 syllable.syllable_end <= len(text) and 
                 syllable.syllable_start < syllable.syllable_end):
                 
-                # Extract the actual syllable from the original text
-                original_syllable = text[syllable.syllable_start:syllable.syllable_end]
+                # Mark each character in the syllable
+                for i in range(syllable.syllable_start, syllable.syllable_end):
+                    # Prefer double_rr over single_r if there's overlap
+                    if char_highlights[i] is None or syllable.pattern_type == 'double_rr':
+                        char_highlights[i] = syllable.pattern_type
+        
+        # Build the highlighted text
+        highlighted_text = ""
+        i = 0
+        while i < len(text):
+            if char_highlights[i] is not None:
+                # Find the end of this highlight
+                pattern_type = char_highlights[i]
+                end = i
+                while end < len(text) and char_highlights[end] == pattern_type:
+                    end += 1
                 
-                # Create highlight based on pattern type
-                if syllable.pattern_type == 'double_rr':
-                    highlight = f"**{original_syllable}**"  # Dark red for double RR
-                elif syllable.pattern_type == 'single_r':
-                    highlight = f"*{original_syllable}*"    # Red for single R
+                # Add the highlighted text
+                if pattern_type == 'double_rr':
+                    highlighted_text += f"**{text[i:end]}**"
+                elif pattern_type == 'single_r':
+                    highlighted_text += f"*{text[i:end]}*"
                 else:
-                    highlight = f"`{original_syllable}`"    # Green for other patterns
+                    highlighted_text += f"`{text[i:end]}`"
                 
-                # Replace the syllable in the text with highlighted version
-                highlighted_text = (
-                    highlighted_text[:syllable.syllable_start] + 
-                    highlight + 
-                    highlighted_text[syllable.syllable_end:]
-                )
+                i = end
+            else:
+                # Add non-highlighted character
+                highlighted_text += text[i]
+                i += 1
         
         return highlighted_text
     
