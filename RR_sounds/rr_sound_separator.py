@@ -174,18 +174,27 @@ class RRSoundDetector:
     
     def highlight_text(self, text: str, syllables: List[RRSyllable]) -> str:
         """
-        Create highlighted text with syllables containing RR patterns marked.
-        Preserves original word structure, only highlights syllables with R sounds.
+        Create highlighted text with enhanced RR pattern highlighting.
+        For double RR words: highlights the entire word with the RR part in dark red and rest in light red.
+        For single R words: highlights the entire word in light red.
         
         Args:
             text: Original text
             syllables: List of detected syllables with RR patterns
             
         Returns:
-            Text with syllables containing RR patterns highlighted
+            Text with enhanced RR pattern highlighting
         """
         if not syllables:
             return text
+        
+        # Group syllables by word to process entire words
+        word_groups = {}
+        for syllable in syllables:
+            word = syllable.word.lower()
+            if word not in word_groups:
+                word_groups[word] = []
+            word_groups[word].append(syllable)
         
         # Create a list of characters with highlighting information
         char_highlights = [None] * len(text)
@@ -202,30 +211,69 @@ class RRSoundDetector:
                     if char_highlights[i] is None or syllable.pattern_type == 'double_rr':
                         char_highlights[i] = syllable.pattern_type
         
-        # Build the highlighted text
+        # Build the highlighted text with syllable-level RR highlighting
         highlighted_text = ""
         i = 0
-        while i < len(text):
-            if char_highlights[i] is not None:
-                # Find the end of this highlight
-                pattern_type = char_highlights[i]
-                end = i
-                while end < len(text) and char_highlights[end] == pattern_type:
-                    end += 1
+        
+        # Sort syllables by position to process them in order
+        sorted_syllables = sorted(syllables, key=lambda x: x.syllable_start)
+        
+        for syllable in sorted_syllables:
+            # Add any text before this syllable
+            if syllable.syllable_start > i:
+                highlighted_text += text[i:syllable.syllable_start]
+            
+            # Get the syllable text
+            syllable_text = text[syllable.syllable_start:syllable.syllable_end]
+            
+            if syllable.pattern_type == 'double_rr':
+                # For double RR syllables, check if this syllable ends with R or starts with R
+                # This creates the RR pattern across syllable boundaries
+                r_positions = []
+                for pos, char in enumerate(syllable_text):
+                    if char.lower() == 'r':
+                        r_positions.append(pos)
                 
-                # Add the highlighted text
-                if pattern_type == 'double_rr':
-                    highlighted_text += f"**{text[i:end]}**"
-                elif pattern_type == 'single_r':
-                    highlighted_text += f"*{text[i:end]}*"
+                if len(r_positions) >= 1:
+                    # Check if this syllable ends with R (last character is R)
+                    if syllable_text.lower().endswith('r'):
+                        # Syllable ends with R - highlight the R in dark red
+                        r_pos = len(syllable_text) - 1
+                        if r_pos > 0:
+                            highlighted_text += f"*{syllable_text[:r_pos]}*"  # Light red before R
+                        highlighted_text += f"**{syllable_text[r_pos:r_pos+1]}**"  # Dark red R (only one character)
+                    elif syllable_text.lower().startswith('r'):
+                        # Syllable starts with R - highlight the R in dark red
+                        r_pos = 0
+                        highlighted_text += f"**{syllable_text[r_pos:r_pos+1]}**"  # Dark red R
+                        if r_pos + 1 < len(syllable_text):
+                            highlighted_text += f"*{syllable_text[r_pos+1:]}*"  # Light red after R
+                    else:
+                        # R is in the middle of the syllable
+                        r_pos = r_positions[0]
+                        if r_pos > 0:
+                            highlighted_text += f"*{syllable_text[:r_pos]}*"  # Light red before R
+                        highlighted_text += f"**{syllable_text[r_pos:r_pos+1]}**"  # Dark red R
+                        if r_pos + 1 < len(syllable_text):
+                            highlighted_text += f"*{syllable_text[r_pos+1:]}*"  # Light red after R
                 else:
-                    highlighted_text += f"`{text[i:end]}`"
-                
-                i = end
+                    # No R in this syllable (shouldn't happen for double_rr pattern)
+                    highlighted_text += f"*{syllable_text}*"
             else:
-                # Add non-highlighted character
-                highlighted_text += text[i]
-                i += 1
+                # For single R syllables, highlight the entire syllable in light red
+                highlighted_text += f"*{syllable_text}*"
+            
+            i = syllable.syllable_end
+        
+        # Add any remaining text after the last syllable
+        if i < len(text):
+            highlighted_text += text[i:]
+        
+        # Add a unique marker between consecutive ** patterns to prevent merging
+        highlighted_text = highlighted_text.replace('****', '**X**')
+        
+        # Also handle the case where we have **r**X**r**
+        highlighted_text = highlighted_text.replace('**r**X**r**', '**r**X**r**')
         
         return highlighted_text
     

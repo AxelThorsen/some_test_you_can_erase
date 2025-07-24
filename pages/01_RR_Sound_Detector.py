@@ -37,16 +37,81 @@ def main():
         key="text_input"
     )
     
+    # Highlighting mode toggle
+    st.markdown("**🎨 Highlighting Style:**")
+    highlight_mode = st.radio(
+        "Choose highlighting style:",
+        ["Box Highlight", "Color Only"],
+        horizontal=True,
+        help="Box Highlight: Syllables with colored backgrounds. Color Only: Syllables with colored text only."
+    )
+    
     # Process when text is entered and Enter is pressed
     if text and text.strip():
         try:
-            # Debug: Show what text is being processed
-            st.write("Debug - Processing text:", repr(text.strip()))
-            
             # Analyze the text
             analysis = detector.analyze_text(text.strip())
             
-            # Display results
+            # Highlighted text (moved to appear first)
+            st.markdown("---")
+            st.subheader("✨ Highlighted Text:")
+            if highlight_mode == "Box Highlight":
+                st.markdown("*Legend: 🔴 Dark Red Box = Double RR patterns, 🔴 Red Box = Single R patterns*")
+            else:
+                st.markdown("*Legend: 🔴 Dark Red Text = Double RR patterns, 🔴 Red Text = Single R patterns*")
+            
+            # Create better highlighted text with custom colors
+            highlighted_html = analysis['highlighted_text']
+            
+            # Replace markdown formatting with custom HTML colors using a more robust approach
+            import re
+            
+            # First, protect double asterisks by replacing them with a temporary marker
+            highlighted_html = highlighted_html.replace('**', 'DOUBLE_ASTERISK')
+            
+            if highlight_mode == "Box Highlight":
+                # Box highlighting mode - colored backgrounds
+                # First, restore double asterisks and remove separator
+                highlighted_html = highlighted_html.replace('DOUBLE_ASTERISK', '**')
+                highlighted_html = highlighted_html.replace('X', '')
+                
+                # Process double asterisks first (dark red)
+                while '**' in highlighted_html:
+                    # Handle the case where there might be empty content between **
+                    highlighted_html = re.sub(r'\*\*([^*]+?)\*\*', r'<span style="background-color: #d32f2f; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;">\1</span>', highlighted_html, count=1)
+                
+                # Then process single asterisks (light red)
+                highlighted_html = re.sub(r'\*(.*?)\*', r'<span style="background-color: #ff6b6b; color: white; padding: 2px 4px; border-radius: 3px;">\1</span>', highlighted_html)
+                
+                # Easy patterns: Green background (replace `text` with span)
+                highlighted_html = re.sub(r'`(.*?)`', r'<span style="background-color: #66bb6a; color: white; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</span>', highlighted_html)
+            else:
+                # Color only mode - colored text without backgrounds
+                # First, restore double asterisks and remove separator
+                highlighted_html = highlighted_html.replace('DOUBLE_ASTERISK', '**')
+                highlighted_html = highlighted_html.replace('X', '')
+                
+                # Process double asterisks first (dark red)
+                while '**' in highlighted_html:
+                    # Handle the case where there might be empty content between **
+                    highlighted_html = re.sub(r'\*\*([^*]+?)\*\*', r'<span style="color: #d32f2f; font-weight: bold;">\1</span>', highlighted_html, count=1)
+                
+                # Then process single asterisks (light red)
+                highlighted_html = re.sub(r'\*(.*?)\*', r'<span style="color: #ff6b6b;">\1</span>', highlighted_html)
+                
+                # Easy patterns: Green text (replace `text` with span)
+                highlighted_html = re.sub(r'`(.*?)`', r'<span style="color: #66bb6a; font-family: monospace;">\1</span>', highlighted_html)
+            
+            # Display highlighted text in a nice box
+            st.markdown(f"""
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 2px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="font-size: 18px; line-height: 1.6; color: #333;">
+            {highlighted_html.replace(chr(10), '<br>')}
+            </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Analysis Results (moved to appear after highlighted text)
             st.markdown("---")
             st.subheader("📊 Analysis Results:")
             
@@ -84,42 +149,6 @@ def main():
                 double_rr_count = by_pattern_type.get('double_rr', 0)
                 st.metric("Double RR", double_rr_count, help="Syllables from words with double RR pattern")
             
-            # Highlighted text
-            st.markdown("---")
-            st.subheader("✨ Highlighted Text:")
-            st.markdown("*Legend: 🔴 Dark Red = Double RR patterns, 🔴 Red = Single R patterns*")
-            
-            # Create better highlighted text with custom colors
-            highlighted_html = analysis['highlighted_text']
-            
-            # Debug: Show raw highlighted text
-            st.write("Debug - Raw highlighted text:", repr(highlighted_html))
-            
-            # Replace markdown formatting with custom HTML colors using a more robust approach
-            import re
-            
-            # First, protect double asterisks by replacing them with a temporary marker
-            highlighted_html = highlighted_html.replace('**', 'DOUBLE_ASTERISK')
-            
-            # Single R patterns: Red background (replace *text* with span)
-            highlighted_html = re.sub(r'\*(.*?)\*', r'<span style="background-color: #ff6b6b; color: white; padding: 2px 4px; border-radius: 3px; font-style: italic;">\1</span>', highlighted_html)
-            
-            # Restore double asterisks and convert to dark red
-            highlighted_html = highlighted_html.replace('DOUBLE_ASTERISK', '**')
-            highlighted_html = re.sub(r'\*\*(.*?)\*\*', r'<span style="background-color: #d32f2f; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;">\1</span>', highlighted_html)
-            
-            # Easy patterns: Green background (replace `text` with span)
-            highlighted_html = re.sub(r'`(.*?)`', r'<span style="background-color: #66bb6a; color: white; padding: 2px 4px; border-radius: 3px; font-family: monospace;">\1</span>', highlighted_html)
-            
-            # Display highlighted text in a nice box
-            st.markdown(f"""
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 2px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="font-size: 18px; line-height: 1.6; color: #333;">
-            {highlighted_html.replace(chr(10), '<br>')}
-            </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
             # Detailed pattern list
             if analysis['patterns']:
                 st.markdown("---")
@@ -148,19 +177,6 @@ def main():
             
         except Exception as e:
             st.error(f"Error processing text: {str(e)}")
-    
-    # Example section
-    st.markdown("---")
-    st.subheader("💡 Try these examples:")
-    
-    example_cols = st.columns(2)
-    with example_cols[0]:
-        if st.button("Example 1: Simple"):
-            st.session_state.text_input = "O carro vermelho correu pela rua."
-    
-    with example_cols[1]:
-        if st.button("Example 2: Complex"):
-            st.session_state.text_input = "A guerra acabou e o trabalho foi gratificante. O correio chegou com uma carta importante."
     
     # Educational info
     st.markdown("---")
