@@ -20,7 +20,8 @@ class PortugueseSyllabifierNLTK:
         
         # Diphthongs (case-insensitive) - these are single syllables
         self.diphthongs = {
-            'ai', 'au', 'ei', 'eu', 'oi', 'ou', 'ui', 'iu'
+            'ai', 'au', 'ei', 'eu', 'oi', 'ou', 'ui', 'iu',
+            'ão', 'ãe', 'õe', 'õa', 'ãi', 'õi'  # Nasal diphthongs
         }
         
         # Imperfect consonant clusters (inseparable)
